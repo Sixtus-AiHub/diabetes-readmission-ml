@@ -1,0 +1,6 @@
+# Raw datasets
+data/raw/
+
+# Model artifacts
+models/*.joblib
+!models/final_random_forest_9_features.joblib
