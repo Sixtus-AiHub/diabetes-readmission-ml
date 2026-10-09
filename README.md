@@ -1,115 +1,387 @@
 # Diabetes 30-Day Hospital Readmission Prediction
 
-## Project Overview
+A healthcare machine-learning portfolio project exploring whether
+routinely collected hospital-encounter information can help identify
+encounters associated with readmission within 30 days.
 
-This project analyzes hospital encounter data to investigate factors associated with 30-day hospital readmission among patients with diabetes.
+> **Project status:** Core analysis and model experiments completed. The
+> project is for educational and portfolio purposes only; it is not a
+> clinical decision-support system and must not be used to make medical
+> decisions.
 
-**Primary question:** Can routinely collected hospital encounter information identify patients at elevated risk of readmission within 30 days?
+## Project at a glance
 
-This is a **portfolio data-science project**. The referenced research paper is used for healthcare-domain context, not as the methodology to reproduce.
+  -----------------------------------------------------------------------
+  Item                                Description
+  ----------------------------------- -----------------------------------
+  Domain                              Healthcare analytics and applied
+                                      machine learning
 
-The project demonstrates reproducible healthcare data analysis, EDA, leakage prevention, patient-aware evaluation, imbalanced classification, model comparison, feature selection, hyperparameter tuning, threshold analysis, model interpretation, error analysis, and model artifact creation.
+  Problem type                        Imbalanced binary classification
 
-> This project is for research and educational purposes. It is not a clinical decision-support system and should not be used for medical decisions.
+  Dataset                             Diabetes 130-US Hospitals for Years
+                                      1999--2008
 
----
+  Dataset size                        101,766 encounters; 71,518 unique
+                                      patients
 
-## Research Context
+  Prediction target                   Readmission within 30 days
 
-The dataset is the **Diabetes 130-US Hospitals for Years 1999-2008** dataset from the UCI Machine Learning Repository.
+  Final model                         Random Forest classifier
 
-The dataset is associated with:
+  Final feature set                   9 raw features
 
-> Strack, B., DeShazo, J. P., Gennaro, M., et al. (2014).  
-> "Impact of HbA1c Measurement on Hospital Readmission Rates: Analysis of 70,000 Clinical Database Patient Records."  
-> *BioMed Research International*, Article ID 781670.
+  Primary ranking metric              Average precision (PR-AUC)
 
-The paper provides healthcare-domain context for hospital readmission, HbA1c measurement, ICD-9 diagnosis codes, hospital utilization, medication information, and repeated encounters.
+  Test ROC-AUC                        0.6726
 
-**This project does not reproduce the paper's methodology.** The predictive modeling approach was developed independently as a portfolio data-science project.
+  Test PR-AUC                         0.2198
 
----
+  Main focus                          Patient-aware evaluation, leakage
+                                      prevention, model comparison,
+                                      feature selection, and error
+                                      analysis
+  -----------------------------------------------------------------------
 
-## Dataset
+## 1. Research question and motivation
 
-**Diabetes 130-US Hospitals for Years 1999-2008**
+Hospital readmission is an important healthcare quality and
+resource-planning concern. Historical encounter data may contain
+patterns associated with subsequent readmission, such as previous
+inpatient or emergency utilization, admission characteristics, and
+discharge information.
 
-- 101,766 hospital encounters
-- 50 raw columns
-- 71,518 unique patients
-- 130 U.S. hospitals / integrated delivery networks
-- data covering 1999-2008
+This project investigates the following question:
 
-Raw files:
+**Can routinely collected patient and hospital-encounter characteristics
+help distinguish encounters followed by a readmission within 30 days?**
 
-```text
-data/raw/
-├── diabetes_130_us_hospitals.zip
-├── diabetic_data.csv
-└── IDS_mapping.csv
-```
+The project is framed as a predictive analysis, not a causal study.
+Associations identified by the models do not establish that a feature
+causes readmission.
 
-Official UCI source:
+## 2. Dataset and target definition
 
-https://archive.ics.uci.edu/dataset/296/diabetes%2B130-u
+The project uses the **Diabetes 130-US Hospitals for Years 1999--2008**
+dataset from the UCI Machine Learning Repository.
 
----
+-   101,766 hospital encounters
+-   50 raw columns
+-   71,518 unique patients
+-   Data from 130 U.S. hospitals / integrated delivery networks
+-   Records covering 1999--2008
 
-## Target Variable
+**Official dataset:**
+https://archive.ics.uci.edu/dataset/296/diabetes+130-us+hospitals+for+years+1999-2008
 
-The target is:
+### Target variable
 
-```text
-readmitted_30d
-```
+The binary target, `readmitted_30d`, was derived from the original
+`readmitted` column:
 
-Definition:
-
-```text
-1 = readmitted within 30 days
-0 = not readmitted within 30 days
-```
-
-Created from the original `readmitted` field:
-
-```python
+``` python
 data["readmitted_30d"] = (
     data["readmitted"] == "<30"
 ).astype(int)
 ```
 
-Target distribution:
+  Value   Meaning
+  ------- -----------------------------------------------
+  `1`     Readmitted within 30 days
+  `0`     Not readmitted within 30 days (`>30` or `NO`)
 
-```text
-0 = 90,409 encounters (88.84%)
-1 = 11,357 encounters (11.16%)
+The target distribution was:
+
+  Class                             Encounters   Percentage
+  ------------------------------- ------------ ------------
+  No readmission within 30 days         90,409       88.84%
+  Readmission within 30 days            11,357       11.16%
+
+The positive class is the minority class, so accuracy alone would not be
+an adequate measure of model quality.
+
+### Prediction point
+
+The project defines the prediction point as **hospital discharge**,
+using information intended to be available by that point. Identifier
+columns (`encounter_id`, `patient_nbr`) and target-related columns
+(`readmitted`, `readmitted_30d`) were excluded from the predictive
+feature set.
+
+Discharge-related variables can be informative at discharge, but they
+would not be available for a model intended to predict risk earlier in
+the hospital stay. Any future version must retain a clear
+prediction-time definition and audit every feature against it.
+
+## 3. Workflow and technical approach
+
+The project was developed as a sequence of data-science experiments
+rather than a single model-fitting exercise.
+
+### Data validation and exploratory data analysis
+
+The analysis included:
+
+-   Dataset dimensions, column types, unique values, and numerical
+    ranges
+-   Missing-value analysis and categorical-value inspection
+-   Duplicate encounter checks
+-   Repeated-patient analysis
+-   Outlier and distribution inspection
+-   Target distribution and class imbalance
+-   Analysis of hospital utilization, diagnoses, admission and discharge
+    characteristics
+-   Descriptive analysis of HbA1c-result categories and
+    medication-related variables
+-   Review of the supplied ID mapping file
+-   A predictive-feature and leakage audit
+
+The dataset contains substantial missingness in several variables.
+Examples include `weight` (96.86% missing), `max_glu_serum` (94.75%),
+`A1Cresult` (83.28%), and `medical_specialty` (49.08%). The project
+excluded `weight` and `payer_code` based on project-specific judgment.
+Missing numeric values were imputed using the median, while categorical
+missing values were represented by `"Missing"`.
+
+The dataset contains a categorical `A1Cresult` field, not continuous
+HbA1c measurements. The analysis did not invent continuous values from
+those categories.
+
+### Preprocessing
+
+A scikit-learn pipeline was used to keep preprocessing within model
+fitting:
+
+**Numeric features** - Median imputation - Standard scaling
+
+**Categorical features** - Constant imputation with `"Missing"` -
+One-hot encoding with `handle_unknown="ignore"`
+
+The initial 45-feature representation expanded to 2,328 encoded features
+after preprocessing. The final nine-feature representation expanded to
+126 encoded features.
+
+### Patient-aware splitting and leakage prevention
+
+The dataset contains repeated encounters for some patients:
+
+-   Unique patients: 71,518
+-   Patients with multiple encounters: 16,773
+-   Maximum encounters for one patient: 40
+
+To reduce the risk of patient leakage, the workflow used
+`StratifiedGroupKFold` with `patient_nbr` as the grouping variable. The
+recorded train/test split contained 81,412 training encounters and
+20,354 test encounters, with zero patients shared between those
+partitions. The training data was further divided into a training subset
+of 65,129 encounters and a validation set of 16,283 encounters, also
+with zero shared patients.
+
+Grouping by patient is important because encounters from the same
+patient may share information. If a patient's records appear in both
+training and evaluation sets, performance estimates can be overly
+optimistic.
+
+### Class imbalance and evaluation metrics
+
+The positive class accounts for approximately 11.16% of encounters. The
+final Random Forest used `class_weight="balanced"` rather than synthetic
+oversampling.
+
+The evaluation included:
+
+-   Average precision / PR-AUC
+-   ROC-AUC
+-   Precision
+-   Recall
+-   F1 score
+-   Balanced accuracy
+-   Confusion-matrix and error analysis
+
+PR-AUC was used as the primary model-ranking metric because the positive
+class is uncommon. Metrics at the 0.50 classification threshold were
+also examined, while recognizing that a threshold should ultimately
+depend on the intended use and the relative costs of false positives and
+false negatives.
+
+## 4. Model development and selection
+
+### Initial model comparison
+
+The initial candidates included Logistic Regression and Random Forest.
+HistGradientBoosting was explored but was not included in the final
+comparison because the current one-hot-encoded preprocessing produced
+sparse input that did not fit the tested configuration.
+
+  Model                   Validation ROC-AUC   Validation PR-AUC
+  --------------------- -------------------- -------------------
+  Logistic Regression                 0.6517              0.2113
+  Random Forest                       0.6731              0.2262
+
+The Random Forest achieved the higher validation PR-AUC among these two
+candidates.
+
+### Random Forest hyperparameter tuning
+
+A grid search evaluated 27 hyperparameter combinations using five-fold
+grouped stratified cross-validation, for 135 model fits. The search
+optimized average precision.
+
+The selected configuration was:
+
+``` python
+{
+    "n_estimators": 500,
+    "max_depth": None,
+    "min_samples_leaf": 5,
+    "class_weight": "balanced",
+    "random_state": 42,
+}
 ```
 
-The positive class is substantially imbalanced.
+The best cross-validation PR-AUC recorded during the search was
+**0.2201**.
 
----
+### Feature selection
 
-## Prediction Point
+Feature selection was explored to reduce dimensionality and assess
+whether a smaller set of raw features could retain useful predictive
+performance.
 
-**Hospital discharge**
+1.  Permutation importance ranked candidate raw features using average
+    precision.
+2.  The top 20 candidates were passed to sequential forward selection.
+3.  Grouped five-fold cross-validation evaluated candidate subsets.
+4.  The best recorded subset contained nine raw features, with a
+    cross-validation PR-AUC of 0.2243.
 
-The model uses information available by discharge to estimate whether the encounter will be followed by a readmission within 30 days.
+The selected features were:
 
-- Admission variables are available before or at admission.
-- Hospital-course variables are available during the stay.
-- Discharge variables are available at discharge.
-- `readmitted_30d` is never used as a feature.
-- `encounter_id` and `patient_nbr` are identifiers, not predictive measurements.
+1.  `number_inpatient`
+2.  `discharge_disposition`
+3.  `medical_specialty`
+4.  `admission_source`
+5.  `number_emergency`
+6.  `admission_type`
+7.  `num_procedures`
+8.  `number_diagnoses`
+9.  `max_glu_serum`
 
-This prediction point is a project-specific design decision.
+This reduced the raw feature count from 45 to 9 (80% fewer raw features)
+and the encoded feature count from 2,328 to 126 (approximately 94.6%
+fewer encoded features).
 
----
+**Selection caveat:** Permutation importance and feature selection used
+validation data, and the nine-feature and 45-feature models were
+subsequently compared on the test set. As a result, the current test
+results should be treated as a useful project evaluation, but not as a
+fully untouched estimate after all model-selection decisions. A future
+rigorous evaluation should reserve a new holdout set or use a carefully
+designed nested cross-validation procedure.
 
-## Project Structure
+## 5. Final model performance
 
-```text
+The final portfolio model is a Random Forest trained on the nine
+selected raw features. The reported classification threshold is 0.50.
+
+### Held-out test metrics
+
+  Metric                         Result
+  ---------------------------- --------
+  ROC-AUC                        0.6726
+  PR-AUC / average precision     0.2198
+  Precision                      0.1763
+  Recall                         0.6193
+  F1 score                       0.2745
+  Balanced accuracy              0.6279
+
+The test-set positive-class prevalence was approximately 11.16%. The
+observed PR-AUC of 0.2198 is above that baseline prevalence, suggesting
+some ability to rank positive cases above negative cases. The ROC-AUC
+indicates moderate discrimination rather than strong separation.
+
+At the 0.50 threshold, recall of 61.93% means the model identified about
+62% of positive encounters in this evaluation. Precision of 17.63% means
+that fewer than one in five flagged encounters was positive. This is a
+substantial false-positive burden and is an important limitation, not a
+result to hide.
+
+### Comparison with the 45-feature reference model
+
+  Metric                45-feature test result   9-feature test result
+  ------------------- ------------------------ -----------------------
+  ROC-AUC                               0.6770                  0.6726
+  PR-AUC                                0.2088                  0.2198
+  Precision                             0.1868                  0.1763
+  Recall                                0.5299                  0.6193
+  F1 score                              0.2762                  0.2745
+  Balanced accuracy                     0.6200                  0.6279
+
+In the recorded comparison, the nine-feature model had higher PR-AUC,
+recall, and balanced accuracy, with a small reduction in ROC-AUC and F1.
+It also used substantially fewer raw and encoded features. These results
+do not establish that the smaller model is clinically superior; they
+describe the trade-offs observed in this experiment.
+
+## 6. Interpretation and error analysis
+
+Exploratory analysis and model-error review found descriptive patterns
+including:
+
+-   Prior inpatient utilization was an important predictive signal.
+-   Prior emergency utilization was positively associated with observed
+    readmission patterns.
+-   Readmission rates varied across discharge dispositions and primary
+    diagnosis groups.
+-   Observed readmission rates increased across the model's risk bands
+    in the recorded analysis.
+-   The highest risk band had an observed readmission rate of
+    approximately 26%, compared with approximately 3.4% in the lowest
+    risk band.
+
+These are descriptive associations. They do not establish causality,
+guarantee performance in another population, or show that acting on the
+predictions would improve outcomes. Predicted scores should not be
+interpreted as calibrated probabilities; calibration would require a
+separate assessment.
+
+## 7. Reproducibility and project artifacts
+
+The project includes scripts, notebooks, dependency information, and
+saved model artifacts.
+
+The final nine-feature model was saved as:
+
+``` text
+models/final_random_forest_9_features.joblib
+```
+
+The 45-feature reference model was also preserved:
+
+``` text
+models/final_random_forest.joblib
+```
+
+The saved nine-feature artifact was successfully loaded as a
+scikit-learn `Pipeline`. However, the notebook's exact
+element-by-element comparison of predictions before and after saving
+returned `False`. Exact floating-point equality can be too strict, but
+this result should be investigated with a numerical-tolerance check
+before claiming that prediction equivalence has been verified.
+
+The environment's dependencies are recorded in `requirements.txt`. For
+reproducible results, users should also record the dataset version,
+split strategy, feature construction, preprocessing, model parameters,
+random seeds, evaluation protocol, and code revision.
+
+### Repository structure
+
+The repository is organized around data, notebooks, source scripts,
+model artifacts, and dependency documentation. A representative
+structure is:
+
+``` text
 diabetes-readmission-ml/
-├── .venv/
 ├── data/
 │   ├── raw/
 │   └── processed/
@@ -117,6 +389,7 @@ diabetes-readmission-ml/
 │   ├── final_random_forest.joblib
 │   └── final_random_forest_9_features.joblib
 ├── notebooks/
+│   ├── diabetes_readmission_analysis.ipynb
 │   └── model.ipynb
 ├── src/
 │   ├── download_data.py
@@ -126,746 +399,149 @@ diabetes-readmission-ml/
 └── requirements.txt
 ```
 
----
-
-## Environment
-
-```text
-Python 3.14.6
-pandas 3.0.6
-numpy 2.5.3
-scikit-learn 1.9.1
-matplotlib 3.11.2
-```
-
-Exact dependencies are recorded in `requirements.txt`.
-
----
-
-## Data Validation and Missing Data
-
-Validation included:
-
-- dataset shape and columns
-- data types
-- missing values
-- unique values
-- target validation
-- duplicate encounter checking
-- repeated-patient analysis
-- categorical inspection
-- numerical ranges
-- outliers
-- ID mapping
-- leakage audit
-
-Duplicate encounters:
-
-```text
-Duplicate encounter_id values: 0
-```
-
-Important missingness:
-
-```text
-weight              96.86%
-max_glu_serum       94.75%
-A1Cresult           83.28%
-medical_specialty   49.08%
-payer_code          39.56%
-race                 2.23%
-diag_3               1.40%
-diag_2               0.35%
-diag_1               0.02%
-```
-
-`weight` and `payer_code` were excluded based on project-specific data-science judgment.
-
-Numeric missing values use median imputation. Categorical missing values use `"Missing"`. Preprocessing is fitted only on appropriate training data.
-
-The integer-coded admission/discharge/source fields were decoded using `IDS_mapping.csv`. IDs 17 for admission source and 18 for discharge disposition have missing descriptions in the supplied mapping; no descriptions were invented.
-
----
-
-## Initial Feature Set
-
-The initial model candidate contained **45 features**.
-
-### Numeric
-
-```text
-time_in_hospital
-num_lab_procedures
-num_procedures
-num_medications
-number_outpatient
-number_emergency
-number_inpatient
-number_diagnoses
-```
-
-### Categorical
-
-```text
-race
-gender
-age
-admission_type
-admission_source
-diag_1
-diag_2
-diag_3
-max_glu_serum
-A1Cresult
-metformin
-repaglinide
-nateglinide
-chlorpropamide
-glimepiride
-acetohexamide
-glipizide
-glyburide
-tolbutamide
-pioglitazone
-rosiglitazone
-acarbose
-miglitol
-troglitazone
-tolazamide
-examide
-citoglipton
-insulin
-glyburide-metformin
-glipizide-metformin
-glimepiride-pioglitazone
-metformin-rosiglitazone
-metformin-pioglitazone
-change
-diabetesMed
-medical_specialty
-discharge_disposition
-```
-
-Excluded from predictive features:
-
-```text
-encounter_id
-patient_nbr
-readmitted
-readmitted_30d
-weight
-payer_code
-```
-
-`diag_1_category` was explored but is not part of the final model.
-
----
-
-## Diagnosis and HbA1c Analysis
-
-Diagnosis variables are ICD-9 codes:
-
-```text
-diag_1 = primary diagnosis
-diag_2 = additional diagnosis
-diag_3 = additional diagnosis
-```
-
-A grouped `diag_1_category` representation was explored descriptively.
-
-The public dataset does not contain continuous HbA1c measurements. `A1Cresult` is categorical:
-
-```text
->8
->7
-Norm
-missing
-```
-
-No continuous HbA1c values were invented. HbA1c and medication-change analyses were descriptive and do not establish causality.
-
----
-
-## Exploratory Findings
-
-EDA covered target distribution, missingness, categorical and numerical distributions, outliers, repeated-patient structure, utilization, admissions, discharge, demographics, diagnoses, HbA1c, medications, correlations, and target relationships.
-
-Important observations:
-
-- 30-day readmission prevalence is 11.16%.
-- `number_inpatient` has a positive descriptive relationship with readmission.
-- `number_emergency` also shows positive descriptive patterns.
-- `number_diagnoses` generally increases in observed readmission rate across common values.
-- `time_in_hospital` shows a modest positive relationship with readmission.
-- Discharge disposition shows larger differences between categories.
-- Primary diagnosis groups have varying observed readmission rates.
-- HbA1c categories have relatively similar observed readmission rates while missingness is substantial.
-
-These are associations, not causal findings.
-
----
-
-## Leakage Prevention and Patient-Aware Evaluation
-
-Repeated encounters create a major risk of patient leakage.
-
-```text
-Unique patients: 71,518
-Patients with multiple encounters: 16,773
-Maximum encounters for one patient: 40
-```
-
-The workflow uses:
-
-```text
-StratifiedGroupKFold
-n_splits = 5
-shuffle = True
-random_state = 42
-groups = patient_nbr
-```
-
-Train/test:
-
-```text
-Training: 81,412 encounters
-Test:     20,354 encounters
-Shared patients: 0
-```
-
-Training/validation subdivision:
-
-```text
-Training subset: 65,129 encounters
-Validation:      16,283 encounters
-Shared patients: 0
-```
-
-The encounter-level target is used for stratification while `patient_nbr` defines the groups.
-
-Forbidden predictive variables:
-
-```text
-encounter_id
-patient_nbr
-readmitted
-readmitted_30d
-```
-
-The workflow also prevents target leakage, identifier leakage, patient leakage, preprocessing leakage, cross-fold leakage, and test-set tuning.
-
----
-
-## Preprocessing
-
-Numeric pipeline:
-
-```text
-median imputation
-↓
-standard scaling
-```
-
-Categorical pipeline:
-
-```text
-constant imputation with "Missing"
-↓
-one-hot encoding
-```
-
-`OneHotEncoder(handle_unknown="ignore")` is used.
-
-Initial 45-feature representation:
-
-```text
-2,328 encoded features
-```
-
-Final selected representation:
-
-```text
-126 encoded features
-```
-
----
-
-## Class Imbalance
-
-The positive class is only:
-
-```text
-11.16%
-```
-
-of encounters.
-
-The final Random Forest uses:
-
-```python
-class_weight="balanced"
-```
-
-This increases the influence of the minority class during model fitting without synthetically oversampling the data.
-
-No SMOTE or other synthetic resampling was applied.
-
-Validation and test sets retain the natural class distribution.
-
----
-
-## Model Comparison
-
-Initial candidates:
-
-```text
-Logistic Regression
-Random Forest
-HistGradientBoosting
-```
-
-HistGradientBoosting was not included in the final comparison because the current one-hot preprocessing produces sparse data while the installed implementation required dense input for this configuration.
-
-Validation ranking:
-
-| Model | ROC-AUC | PR-AUC |
-|---|---:|---:|
-| Logistic Regression | 0.6517 | 0.2113 |
-| Random Forest | 0.6731 | **0.2262** |
-
-Because the positive class is uncommon, PR-AUC is particularly important.
-
----
-
-## Random Forest Tuning
-
-Grouped stratified 5-fold cross-validation was used.
-
-Search space:
-
-```python
-rf_param_grid = {
-    "model__n_estimators": [200, 300, 500],
-    "model__max_depth": [None, 10, 20],
-    "model__min_samples_leaf": [1, 5, 10],
-}
-```
-
-This produced:
-
-```text
-27 combinations
-5 folds
-135 fits
-```
-
-Objective:
-
-```text
-Average Precision / PR-AUC
-```
-
-Best configuration:
-
-```text
-n_estimators = 500
-max_depth = None
-min_samples_leaf = 5
-```
-
-Best CV PR-AUC:
-
-```text
-0.2201
-```
-
-A worker warning occurred during the parallel search, but the search completed and returned a valid configuration.
-
----
-
-## Feature Selection
-
-Feature selection was performed after establishing the tuned 45-feature Random Forest reference.
-
-### Permutation Importance
-
-Permutation importance used:
-
-```text
-scoring = average_precision
-n_repeats = 10
-random_state = 42
-```
-
-The top 20 permutation-ranked features became the SFS candidate pool.
-
-### Sequential Forward Selection
-
-Grouped 5-fold sequential forward selection evaluated candidate features incrementally.
-
-Best step:
-
-```text
-9 features
-CV PR-AUC = 0.2243
-```
-
-Final selected features:
-
-```text
-number_inpatient
-discharge_disposition
-medical_specialty
-admission_source
-number_emergency
-admission_type
-num_procedures
-number_diagnoses
-max_glu_serum
-```
-
-Dimensionality reduction:
-
-```text
-45 → 9 raw features
-2,328 → 126 processed features
-```
-
-That is:
-
-```text
-80% fewer raw features
-~94.6% fewer processed features
-```
-
-### Feature Selection Caveat
-
-Permutation importance and SFS development used the validation set. Therefore, validation metrics for the selected feature set are selection-biased.
-
-The test set remained untouched during feature selection and was evaluated only after the 9-feature set was frozen.
-
----
-
-## Final Model Configuration
-
-```text
-Model: Random Forest
-n_estimators: 500
-max_depth: None
-min_samples_leaf: 5
-class_weight: balanced
-random_state: 42
-threshold: 0.50
-```
-
-Final raw features:
-
-```text
-number_inpatient
-discharge_disposition
-medical_specialty
-admission_source
-number_emergency
-admission_type
-num_procedures
-number_diagnoses
-max_glu_serum
-```
-
----
-
-## Validation Results
-
-9-feature model:
-
-```text
-ROC-AUC:           0.6708
-PR-AUC:            0.2278
-Precision:         0.1746
-Recall:            0.5993
-F1:                0.2704
-Balanced Accuracy: 0.6217
-```
-
-45-feature reference:
-
-```text
-ROC-AUC:           0.6805
-PR-AUC:            0.2240
-Precision:         0.1902
-Recall:            0.5388
-F1:                0.2812
-Balanced Accuracy: 0.6253
-```
-
-The selected model trades a small amount of ROC-AUC/F1 for higher recall, slightly higher PR-AUC, and substantially lower dimensionality.
-
----
-
-## Final Held-Out Test Evaluation
-
-The frozen 9-feature model was evaluated once on the untouched test set.
-
-```text
-ROC-AUC:           0.6726
-PR-AUC:            0.2198
-Precision:         0.1763
-Recall:            0.6193
-F1:                0.2745
-Balanced Accuracy: 0.6279
-```
-
-### Comparison with 45-Feature Reference
-
-| Metric | 45-feature test | 9-feature test |
-|---|---:|---:|
-| ROC-AUC | 0.6770 | 0.6726 |
-| PR-AUC | 0.2088 | **0.2198** |
-| Precision | 0.1868 | 0.1763 |
-| Recall | 0.5299 | **0.6193** |
-| F1 | 0.2762 | 0.2745 |
-| Balanced Accuracy | 0.6200 | **0.6279** |
-
-The **9-feature model is the final portfolio model**.
-
-It provides substantially higher recall, slightly higher PR-AUC and balanced accuracy, while reducing raw features by 80% and processed features by approximately 94.6%.
-
-The model should be viewed as a risk-screening/ranking model rather than a definitive clinical classifier.
-
----
-
-## Error Analysis
-
-Final test-set error counts:
-
-```text
-TN: 12,840
-FP:  5,242
-TP:  1,204
-FN:  1,068
-```
-
-Key findings:
-
-- prior inpatient utilization was a major predictive signal
-- true positives generally had higher prior inpatient and emergency utilization than false negatives
-- false positives and true positives had similar overall measures of hospital complexity
-- age did not show a strong systematic error pattern
-- SNF and home-health discharges had higher observed readmission rates but also produced substantial false positives
-- observed readmission rates increased consistently across prediction-risk bands
-- the highest risk band had an observed readmission rate of approximately 26%, compared with approximately 3.4% in the lowest risk band
-- predicted probabilities should not be interpreted as calibrated probabilities
-
-These observations describe associations and do not establish causality.
-
----
-
-## Model Artifact and Reproducibility
-
-Final artifact:
-
-```text
-models/final_random_forest_9_features.joblib
-```
-
-The artifact was reloaded successfully as a scikit-learn `Pipeline`.
-
-Reload verification:
-
-```text
-Maximum absolute prediction difference: 4.44e-16
-Mean absolute prediction difference:    3.75e-17
-```
-
-Predictions were numerically equivalent within `1e-12`.
-
-The original 45-feature reference model remains preserved:
-
-```text
-models/final_random_forest.joblib
-```
-
-### Reproducibility Record
-
-```text
-Dataset:
-UCI Diabetes 130-US Hospitals for Years 1999-2008
-
-Target:
-readmitted_30d = (readmitted == "<30").astype(int)
-
-Prediction point:
-Hospital discharge
-
-Initial candidate features:
-45
-
-Final selected features:
-9
-
-Initial processed features:
-2,328
-
-Final processed features:
-126
-
-Train/test split:
-StratifiedGroupKFold, 5 folds, random_state=42, groups=patient_nbr
-
-Training:
-81,412 encounters before validation subdivision
-
-Training subset:
-65,129 encounters
-
-Validation:
-16,283 encounters
-
-Test:
-20,354 encounters
-
-Model:
-Random Forest
-
-n_estimators:
-500
-
-max_depth:
-None
-
-min_samples_leaf:
-5
-
-class_weight:
-balanced
-
-random_state:
-42
-
-Threshold:
-0.50
-
-Primary ranking metric:
-PR-AUC
-
-Secondary ranking metric:
-ROC-AUC
-```
-
-Future experiments should record dataset/version, sampling strategy, split, feature construction, preprocessing, algorithm, hyperparameters, seed, evaluation protocol, and code version/commit.
-
----
-
-## Current Project Status
-
-### Completed
-
-- environment initialized
-- reproducible requirements recorded
-- Git repository initialized
-- UCI dataset downloaded and validated
-- target created
-- EDA completed
-- healthcare-domain context reviewed
-- diagnosis and HbA1c analyses completed
-- ID mappings decoded
-- feature taxonomy completed
-- prediction point defined
-- leakage audit completed
-- repeated-patient structure analyzed
-- patient-aware train/test and validation splits implemented
-- preprocessing implemented
-- class imbalance handled with class weighting
-- Logistic Regression evaluated
-- Random Forest evaluated
-- threshold analysis completed
-- Random Forest tuning completed
-- permutation feature importance completed
-- sequential forward selection completed
-- final 9-feature model selected
-- final held-out test evaluation completed
-- final model artifact saved and verified
-
-### Current Phase
-
-```text
-Phase 10 — Final Model / Application
-```
-
-The final feature-selected model has been evaluated and saved. The next stage is to build a user-facing application around the saved model while keeping application code separate from research/evaluation code where practical.
-
----
-
-## Research Fidelity
-
-The project distinguishes between:
-
-```text
-A = paper-stated facts and domain definitions
-B = project-specific data-science decisions
-C = engineering improvements
-D = experimental observations
-E = model-generated suggestions
-```
-
-The paper is used for healthcare-domain context, particularly HbA1c terminology and research motivation.
-
-Project-specific decisions include:
-
-- hospital-discharge prediction point
-- patient-grouped evaluation
-- candidate and selected feature sets
-- exclusion of `weight` and `payer_code`
-- preprocessing
-- class weighting
-- model comparison
-- Random Forest tuning
-- permutation importance
-- sequential forward selection
-- threshold selection
-- final test protocol
-
----
-
-## Limitations
-
-- observational healthcare data
-- data collected from 1999-2008
-- historical clinical practice may differ from current practice
-- substantial missingness
-- rare categorical values
-- repeated encounters for some patients
-- limited clinical and social context
-- de-identified public data
-- observed readmission is not equivalent to all possible readmission risk
-- moderate predictive performance
-- precision remains limited at the selected threshold
-- model performance does not establish clinical utility
-- external validation has not been performed
-- no temporal holdout evaluation has been performed
-- feature selection used validation data during development, so selected-model validation metrics are not independent estimates
-
-The model should not be used for clinical decision-making.
-
----
-
-## Intended Use
-
-This project is intended as a reproducible data-science portfolio project demonstrating:
-
-- healthcare data analysis
-- exploratory data analysis
-- feature engineering
-- feature selection
-- leakage prevention
-- patient-aware evaluation
-- imbalanced classification
-- model comparison
-- hyperparameter tuning
-- threshold analysis
-- model interpretation
-- error analysis
-- reproducible experimentation
-- model artifact creation
-
-It is not intended for clinical deployment or medical decision-making.
+This is a representative structure; update it if the repository contents
+differ. The local `.venv/` environment should generally remain excluded
+from version control. Check GitHub's file-size limits and consider Git
+LFS or release assets if model files make the repository difficult to
+clone.
+
+## 8. Skills demonstrated
+
+This project provides evidence of practice with the following skills:
+
+  -----------------------------------------------------------------------
+  Skill area                          Evidence from the project
+  ----------------------------------- -----------------------------------
+  Python data analysis                Dataset validation, transformation,
+                                      aggregation, and analysis
+
+  pandas and NumPy                    Data inspection, missingness
+                                      analysis, feature preparation, and
+                                      metric calculations
+
+  Exploratory data analysis           Class distribution, feature
+                                      distributions, missing values, and
+                                      target relationships
+
+  Data preprocessing                  Separate numeric and categorical
+                                      pipelines, imputation, scaling, and
+                                      encoding
+
+  Scikit-learn pipelines              Reusable preprocessing and modeling
+                                      workflow
+
+  Supervised machine learning         Logistic Regression and Random
+                                      Forest classification
+
+  Imbalanced classification           Class weighting and PR-AUC-centered
+                                      model comparison
+
+  Model evaluation                    ROC-AUC, PR-AUC, precision, recall,
+                                      F1, balanced accuracy, and
+                                      confusion matrix
+
+  Cross-validation and tuning         Grouped stratified cross-validation
+                                      and grid search
+
+  Leakage awareness                   Exclusion of identifiers/target
+                                      columns and patient-grouped
+                                      evaluation
+
+  Feature selection                   Permutation importance and
+                                      sequential forward selection
+
+  Model interpretation                Feature analysis, risk-band review,
+                                      and error analysis
+
+  Reproducibility practices           Dependency file, saved pipeline
+                                      artifacts, and model reload checks
+
+  Scientific reasoning                Clear research question,
+                                      distinction between association and
+                                      causation, and documented
+                                      limitations
+  -----------------------------------------------------------------------
+
+The project demonstrates applied practice in these areas; it should not
+be interpreted as proof of production-level clinical ML expertise.
+
+## 9. Limitations and responsible use
+
+Important limitations include:
+
+-   The data covers 1999--2008 and may not reflect current clinical
+    practice.
+-   Several variables have substantial missingness.
+-   The dataset has limited clinical and social context.
+-   The target represents observed readmission in this dataset, not
+    every possible measure of readmission risk.
+-   Predictive performance is moderate and precision is limited at the
+    selected threshold.
+-   The current project has no external validation or temporal holdout
+    evaluation.
+-   Model selection involved validation-based feature selection and
+    comparison of test-set results; the reported test metrics are
+    therefore not a fully independent final estimate.
+-   Calibration and clinical utility have not been established.
+-   Discharge-related features are only appropriate for a prediction
+    made at discharge.
+-   Associations found in observational data do not imply causality.
+
+**This model is for education and portfolio demonstration only. It must
+not be used for diagnosis, treatment, discharge decisions, or other
+clinical decision-making.** External validation, careful calibration,
+clinical review, fairness analysis, and evaluation of real-world utility
+would be required before any clinical application could be considered.
+
+## 10. Future improvements
+
+Potential next steps include:
+
+1.  Resolve the saved-model prediction-equivalence check using numerical
+    tolerances and investigate any meaningful discrepancy.
+2.  Strengthen evaluation with a new untouched holdout set or nested
+    cross-validation.
+3.  Assess probability calibration and document threshold-selection
+    criteria.
+4.  Add confidence intervals or variability estimates for key metrics.
+5.  Evaluate performance across relevant patient subgroups, with careful
+    attention to sample size and fairness.
+6.  Add a clean inference script that validates input columns and uses
+    the saved pipeline.
+7.  If developing a demonstration application, keep application code
+    separate from training and evaluation code, and clearly label it as
+    educational.
+8.  Document the environment setup, data preparation, notebook execution
+    order, and expected outputs.
+9.  Explore whether the research question can be refined into a more
+    focused, reproducible healthcare analysis.
+
+## 11. Research context
+
+The dataset is associated with the following publication:
+
+Strack, B., DeShazo, J. P., Gennaro, M., et al. (2014). "Impact of HbA1c
+Measurement on Hospital Readmission Rates: Analysis of 70,000 Clinical
+Database Patient Records." *BioMed Research International*, Article ID
+781670.
+
+The paper provides healthcare-domain context for readmission, HbA1c
+measurement, diagnoses, medication information, and repeated encounters.
+**This portfolio project does not claim to reproduce the paper's
+methodology or results.** The modeling workflow and feature-selection
+decisions described here are project-specific.
+
+## Conclusion
+
+This project represents an end-to-end applied machine-learning exercise
+using a large, imperfect healthcare dataset. It goes beyond fitting a
+classifier by examining missingness, repeated-patient structure, leakage
+risks, class imbalance, model-selection trade-offs, feature reduction,
+and errors.
+
+The results suggest that the selected model contains some ability to
+rank encounters by observed 30-day readmission outcome, but its moderate
+discrimination and low precision limit the claims that can be made. The
+most valuable outcome is the documented workflow and the practical
+lessons it provides for further work in healthcare analytics and
+responsible machine learning.
